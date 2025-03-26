@@ -45,9 +45,10 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 //this is custom API route for the FRONTEND; 
 
 app.get("/api/playlist/:playlistId",async(req,res)=> {
-    const playlistId = req.params.playlistId;
+    const playlistId = req.params.playlistId; //get playlist id from the URL
 
-    try {
+    try 
+    {
         const auth = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString("base64");
 
         const tokenResponse= await axios.post //fetching token
@@ -55,7 +56,8 @@ app.get("/api/playlist/:playlistId",async(req,res)=> {
             "https://accounts.spotify.com/api/token",
             "grant_type=client_credentials",
             {
-                headers: {
+                headers: 
+                {
                     Authorization: `Basic ${auth}`,
                     "Content-Type": "application/x-www-form-urlencoded",
                 },
@@ -65,20 +67,44 @@ app.get("/api/playlist/:playlistId",async(req,res)=> {
         //getting token from spotify response
         const accessToken = tokenResponse.data.access_token;
 
-        //fetching playlist tracks
-        const response = await axios.get(
-            `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=3`,
-            {
-                headers: { Authorization: `Bearer ${accessToken}` }, // Use token in the request header
-            }
-        );
+        //FETCHING ALL TRACKS FROM THE PLAYLIST
+        let alltracks=[]; //hold 900 tracks
+        let offset=0; //first chunk of tracks
+        const limit =100; //100 tracks per req
 
-        res.json(response.data);
+        //LOOP until all tracks pulled.
+        while(true) 
+        {
+            const response = await axios.get(
+                `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}`,
+                {
+                    headers: 
+                    {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                }
+            );
+
+            const items = response.data.items; //store tracks from response
+            if (!items.length) break; //if no more tracks returned
+
+            alltracks.push(...items); //add to main array
+            offset+=limit; //increase offset to get the next chunk of songs
+        }
+
+        const randomTracks=pickRandomTracks(alltracks, 3);
+        res.json({ tracks: randomTracks });
+
     }
     catch(error)
     {
         console.error(error);
-        res.status(500).json({error:"Error fetching playlist"});
-
+        res.status(500).json({error:"Error fetching playlist songs"});
     }
 });
+
+//function to pick random tracks
+function pickRandomTracks(tracks, count = 2) {
+    const shuffled = [...tracks].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  }
