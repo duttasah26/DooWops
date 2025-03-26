@@ -67,7 +67,7 @@ app.get("/api/playlist/:playlistId",async(req,res)=> {
 
         //fetching playlist tracks
         const response = await axios.get(
-            `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+            `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=3`,
             {
                 headers: { Authorization: `Bearer ${accessToken}` }, // Use token in the request header
             }
