@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import WebPlayback from "./WebPlayback";
 import Particles from "react-tsparticles";
 import { loadSlim } from "tsparticles-slim";
-import { FaForward, FaVolumeUp } from "react-icons/fa";
+import { FaRedo, FaSpotify, FaForward, FaCheck } from "react-icons/fa";
 import "./App.css";
 
-const MOCK_PLAYLIST_ID = "6utZxFzH2JKGp944C3taxO";
+const MOCK_PLAYLIST_ID = "5HmrH4b9CB1AgkQxqlkscV";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 export default function App() {
@@ -14,12 +14,10 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
-  const [volume, setVolume] = useState(80);
 
   useEffect(() => {
     const hash = window.location.hash;
-    let storedToken = localStorage.getItem("spotify_token");
-
+    const storedToken = localStorage.getItem("spotify_token");
     if (!storedToken && hash) {
       const params = new URLSearchParams(hash.substring(1));
       const token = params.get("access_token");
@@ -38,11 +36,7 @@ export default function App() {
     const data = await res.json();
     setTracks(data.tracks);
     setCurrentIndex(0);
-  };
-
-  const reset = () => {
     setSelectedTrack(null);
-    fetchRandomTracks();
   };
 
   useEffect(() => {
@@ -67,46 +61,37 @@ export default function App() {
         console.error("🛑 Failed to autoplay:", err);
       }
     };
-
     autoPlay();
   }, [deviceId, currentTrack, token]);
 
   return (
-    <div className="min-h-screen w-full relative bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white">
-      {/* Particle Background */}
+    <div className="min-h-screen w-screen relative bg-gradient-to-br from-purple-900 to-black text-white overflow-x-hidden">
       <Particles
         id="tsparticles"
         init={loadSlim}
         options={{
-          background: { color: "#00000000" },
+          background: { color: "transparent" },
           fpsLimit: 60,
           particles: {
             color: { value: "#ffffff" },
-            links: {
-              enable: true,
-              color: "#ffffff",
-              distance: 150,
-              opacity: 0.1,
-              width: 1,
-            },
-            move: { enable: true, speed: 0.6 },
-            number: { value: 30 },
-            size: { value: { min: 1, max: 2 } },
+            links: { enable: true, color: "#ffffff", distance: 150, opacity: 0.2, width: 1 },
+            move: { enable: true, speed: 0.5 },
+            number: { value: 40 },
             opacity: { value: 0.3 },
+            size: { value: { min: 1, max: 3 } },
           },
         }}
       />
 
-      {/* Header */}
-      <header className="absolute top-6 left-6 z-50">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <span>🎵</span> <span>Doowops</span>
-        </h1>
-      </header>
+      {/* Doowops Logo */}
+      <div className="absolute top-4 left-6 flex items-center gap-2 z-50">
+        <FaSpotify className="text-green-500 text-3xl" />
+        <h1 className="text-3xl font-bold">DooWops</h1>
+      </div>
 
-      {/* Your Choice */}
+      {/* Selected Track Card */}
       {selectedTrack && (
-        <div className="absolute top-6 right-6 bg-slate-800 p-3 rounded flex items-center space-x-3 shadow-lg z-50">
+        <div className="absolute top-4 right-6 bg-gray-900 p-3 rounded flex items-center space-x-3 shadow-lg z-50">
           <img src={selectedTrack.album.images[2]?.url} alt="thumb" className="w-12 h-12 rounded" />
           <div>
             <p className="text-xs text-gray-400 font-semibold">YOUR CHOICE:</p>
@@ -118,50 +103,58 @@ export default function App() {
         </div>
       )}
 
-      {/* Player */}
-      <main className="flex flex-col items-center justify-start pt-28 pb-20 px-4">
-        {token && currentTrack && (
-          <div className="p-4 border rounded-xl shadow bg-zinc-900 text-white space-y-4 relative max-w-md w-full">
-            <div className="relative">
-              <img src={currentTrack.album.images[0].url} alt={currentTrack.name} className="rounded w-full" />
-              <button
-                disabled={currentIndex >= tracks.length - 1}
-                onClick={() => setCurrentIndex(currentIndex + 1)}
-                className="absolute top-1/2 right-[-2rem] transform -translate-y-1/2 text-purple-500 bg-white p-3 rounded-full shadow-lg text-4xl hover:scale-110 transition-all duration-200"
-              >
-                <FaForward />
-              </button>
-            </div>
-
-            <div className="text-center">
-              <h2 className="text-xl font-semibold">{currentTrack.name}</h2>
-              <p className="text-sm text-gray-300">
+      {/* Main Content */}
+      <div className="flex flex-col items-center justify-start mt-32 relative z-40">
+        {token && currentTrack ? (
+          <div className="w-full max-w-md px-4 space-y-4">
+            <div className="bg-zinc-900 rounded-lg p-4 shadow-xl relative">
+              <img src={currentTrack.album.images[0].url} alt="cover" className="rounded w-full" />
+              <h2 className="text-xl font-semibold mt-2 text-center">{currentTrack.name}</h2>
+              <p className="text-sm text-gray-300 text-center">
                 {currentTrack.artists.map((a) => a.name).join(", ")}
               </p>
-            </div>
 
-            <WebPlayback token={token} trackUri={currentTrack.uri} onReady={setDeviceId} volume={volume} />
+              <p className="text-center text-sm text-purple-300 mt-2">
+                Track {currentIndex + 1}/3
+              </p>
 
-            <div className="flex gap-4 justify-center mt-4">
-              <button
-                disabled={!!selectedTrack}
-                onClick={() => setSelectedTrack(currentTrack)}
-                className={`px-4 py-2 ${selectedTrack ? "bg-gray-500" : "bg-green-600"} text-white rounded`}
-              >
-                Select This Song
-              </button>
-              <button
-                onClick={reset}
-                className="px-4 py-2 bg-blue-500 text-white rounded"
-              >
-                🔄 Reset
-              </button>
+              <WebPlayback
+                token={token}
+                trackUri={currentTrack.uri}
+                onReady={setDeviceId}
+              />
+
+              <div className="flex justify-between items-center mt-4">
+                <button
+                  disabled={!!selectedTrack}
+                  onClick={() => setSelectedTrack(currentTrack)}
+                  className="text-green-400 text-2xl hover:scale-110 transition-all"
+                  title="Pick Song"
+                >
+                  <FaCheck />
+                </button>
+
+                <button
+                  disabled={currentIndex >= tracks.length - 1}
+                  onClick={() => setCurrentIndex(currentIndex + 1)}
+                  className="text-red-400 text-2xl hover:scale-110 transition-all"
+                  title="Next Song"
+                >
+                  <FaForward />
+                </button>
+              </div>
             </div>
           </div>
+        ) : (
+          token && (
+            <div className="text-center mt-10 text-gray-400 text-lg">
+              🚫 No more songs to play. Click reset below to restart.
+            </div>
+          )
         )}
 
         {!token && (
-          <div className="text-center mt-6">
+          <div className="text-center mt-10">
             <a
               href={`${BACKEND_URL}/auth/login`}
               className="bg-green-600 px-6 py-2 text-white rounded"
@@ -170,19 +163,17 @@ export default function App() {
             </a>
           </div>
         )}
-      </main>
+      </div>
 
-      {/* Volume Control */}
-      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
-        <FaVolumeUp className="text-gray-400" />
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={volume}
-          onChange={(e) => setVolume(parseInt(e.target.value))}
-          className="w-32"
-        />
+      {/* Bottom Left Reset */}
+      <div className="absolute bottom-6 left-6 z-50">
+        <button
+          onClick={fetchRandomTracks}
+          className="text-white text-2xl hover:text-blue-400 transition-all"
+          title="Reset"
+        >
+          <FaRedo />
+        </button>
       </div>
     </div>
   );

@@ -1,20 +1,13 @@
-// WebPlayback.jsx
 import { useEffect, useState } from "react";
-import { FaPlay, FaPause } from "react-icons/fa";
+import { FaPlay, FaPause, FaVolumeUp } from "react-icons/fa";
 
-const WebPlayback = ({ token, trackUri, onReady, volume }) => {
+const WebPlayback = ({ token, trackUri, onReady }) => {
   const [player, setPlayer] = useState(undefined);
   const [isPaused, setPaused] = useState(false);
   const [isActive, setActive] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(1);
-
-  // Update player volume when prop changes
-  useEffect(() => {
-    if (player && volume != null) {
-      player.setVolume(volume / 100);
-    }
-  }, [volume, player]);
+  const [volume, setVolume] = useState(80);
 
   useEffect(() => {
     if (!window.Spotify) {
@@ -53,9 +46,29 @@ const WebPlayback = ({ token, trackUri, onReady, volume }) => {
     };
   }, [token]);
 
+  // Update seek bar in real time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      player?.getCurrentState()?.then(state => {
+        if (state) {
+          setPosition(state.position);
+          setDuration(state.duration);
+        }
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [player]);
+
   const handleSeek = (e) => {
     const newPos = (e.target.value / 100) * duration;
     player.seek(newPos);
+  };
+
+  const handleVolume = (e) => {
+    const newVol = parseInt(e.target.value);
+    setVolume(newVol);
+    player.setVolume(newVol / 100);
   };
 
   const formatTime = (ms) => {
@@ -66,15 +79,16 @@ const WebPlayback = ({ token, trackUri, onReady, volume }) => {
 
   if (!isActive) {
     return (
-      <div className="text-center p-8">
-        <p className="text-xl font-semibold">🔌 Connect to a Spotify Device</p>
-        <p className="text-gray-500">Open Spotify and choose "Doowops Player".</p>
+      <div className="text-center p-6">
+        <p className="text-lg font-semibold">🔌 Connect to Spotify</p>
+        <p className="text-sm text-gray-400">Open the app and select “Doowops Player”.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative w-full">
+      {/* Seek Bar */}
       <div className="flex items-center gap-2">
         <span className="text-sm w-12 text-right">{formatTime(position)}</span>
         <input
@@ -83,22 +97,35 @@ const WebPlayback = ({ token, trackUri, onReady, volume }) => {
           max="100"
           value={(position / duration) * 100}
           onChange={handleSeek}
-          className="w-full"
+          className="w-full accent-pink-500"
         />
         <span className="text-sm w-12">{formatTime(duration)}</span>
       </div>
 
+      {/* Play/Pause Button */}
       <div className="flex justify-center">
         <button
           onClick={() => player.togglePlay()}
-          className="px-6 py-2 bg-green-600 text-white rounded text-xl flex items-center justify-center gap-2"
+          className="p-3 bg-green-600 text-white rounded-full text-xl hover:scale-110 transition-transform"
         >
           {isPaused ? <FaPlay /> : <FaPause />}
         </button>
+      </div>
+
+      {/* Volume - Bottom Right */}
+      <div className="fixed bottom-4 right-6 flex items-center gap-2 bg-black/40 p-2 rounded-md z-50">
+        <FaVolumeUp />
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={volume}
+          onChange={handleVolume}
+          className="w-32 accent-white"
+        />
       </div>
     </div>
   );
 };
 
 export default WebPlayback;
-
