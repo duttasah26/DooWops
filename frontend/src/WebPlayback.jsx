@@ -1,14 +1,21 @@
+// WebPlayback.jsx
 import { useEffect, useState } from "react";
+import { FaPlay, FaPause } from "react-icons/fa";
 
-const WebPlayback = ({ token, trackUri, onReady }) => {
+const WebPlayback = ({ token, trackUri, onReady, volume }) => {
   const [player, setPlayer] = useState(undefined);
   const [isPaused, setPaused] = useState(false);
   const [isActive, setActive] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(1);
-  const [deviceId, setDeviceId] = useState(null);
 
-  // Load SDK and initialize player
+  // Update player volume when prop changes
+  useEffect(() => {
+    if (player && volume != null) {
+      player.setVolume(volume / 100);
+    }
+  }, [volume, player]);
+
   useEffect(() => {
     if (!window.Spotify) {
       const script = document.createElement("script");
@@ -18,22 +25,19 @@ const WebPlayback = ({ token, trackUri, onReady }) => {
     }
 
     window.onSpotifyWebPlaybackSDKReady = () => {
-      const player = new window.Spotify.Player({
+      const playerInstance = new window.Spotify.Player({
         name: "Doowops Player",
         getOAuthToken: cb => cb(token),
-        volume: 0.8,
+        volume: volume / 100,
       });
 
-      setPlayer(player);
+      setPlayer(playerInstance);
 
-      player.addListener("ready", ({ device_id }) => {
-        console.log("✅ Ready with Device ID", device_id);
-        setDeviceId(device_id);
-        localStorage.setItem("spotify_device_id", device_id);
+      playerInstance.addListener("ready", ({ device_id }) => {
         onReady(device_id);
       });
 
-      player.addListener("player_state_changed", (state) => {
+      playerInstance.addListener("player_state_changed", (state) => {
         if (!state) return;
         setPaused(state.paused);
         setPosition(state.position);
@@ -41,7 +45,7 @@ const WebPlayback = ({ token, trackUri, onReady }) => {
         setActive(true);
       });
 
-      player.connect();
+      playerInstance.connect();
     };
 
     return () => {
@@ -49,23 +53,15 @@ const WebPlayback = ({ token, trackUri, onReady }) => {
     };
   }, [token]);
 
-  // Play new song when trackUri changes
-  useEffect(() => {
-    if (deviceId && trackUri) {
-      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-        method: "PUT",
-        body: JSON.stringify({ uris: [trackUri] }),
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }).catch(err => console.error("⚠️ Error playing track", err));
-    }
-  }, [trackUri, deviceId]);
-
   const handleSeek = (e) => {
     const newPos = (e.target.value / 100) * duration;
     player.seek(newPos);
+  };
+
+  const formatTime = (ms) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   if (!isActive) {
@@ -78,21 +74,26 @@ const WebPlayback = ({ token, trackUri, onReady }) => {
   }
 
   return (
-    <div className="mt-4 space-y-4">
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={(position / duration) * 100}
-        onChange={handleSeek}
-        className="w-full"
-      />
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-sm w-12 text-right">{formatTime(position)}</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={(position / duration) * 100}
+          onChange={handleSeek}
+          className="w-full"
+        />
+        <span className="text-sm w-12">{formatTime(duration)}</span>
+      </div>
+
       <div className="flex justify-center">
         <button
           onClick={() => player.togglePlay()}
-          className="px-6 py-2 bg-green-500 text-white rounded"
+          className="px-6 py-2 bg-green-600 text-white rounded text-xl flex items-center justify-center gap-2"
         >
-          {isPaused ? "▶️ Play" : "⏸ Pause"}
+          {isPaused ? <FaPlay /> : <FaPause />}
         </button>
       </div>
     </div>

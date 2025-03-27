@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import WebPlayback from "./WebPlayback";
+import Particles from "react-tsparticles";
+import { loadSlim } from "tsparticles-slim";
+import { FaForward, FaVolumeUp } from "react-icons/fa";
 import "./App.css";
 
 const MOCK_PLAYLIST_ID = "6utZxFzH2JKGp944C3taxO";
@@ -11,29 +14,22 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
+  const [volume, setVolume] = useState(80);
 
   useEffect(() => {
     const hash = window.location.hash;
-    console.log("🌐 Full window.location.hash:", hash);
+    let storedToken = localStorage.getItem("spotify_token");
 
-    let token = localStorage.getItem("spotify_token");
-
-    if (!token && hash) {
+    if (!storedToken && hash) {
       const params = new URLSearchParams(hash.substring(1));
-      token = params.get("access_token");
-
+      const token = params.get("access_token");
       if (token) {
-        console.log("🔐 Storing new access token:", token);
         localStorage.setItem("spotify_token", token);
+        setToken(token);
         window.history.replaceState(null, null, " ");
       }
-    }
-
-    if (token) {
-      console.log("✅ Using stored token:", token);
-      setToken(token);
-    } else {
-      console.log("❌ No token found in localStorage or URL");
+    } else if (storedToken) {
+      setToken(storedToken);
     }
   }, []);
 
@@ -42,7 +38,11 @@ export default function App() {
     const data = await res.json();
     setTracks(data.tracks);
     setCurrentIndex(0);
+  };
+
+  const reset = () => {
     setSelectedTrack(null);
+    fetchRandomTracks();
   };
 
   useEffect(() => {
@@ -51,74 +51,139 @@ export default function App() {
 
   const currentTrack = tracks[currentIndex]?.track;
 
-  const handleSkip = () => {
-    if (currentIndex < tracks.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setSelectedTrack(null); // Deselect if you're skipping
-    }
-  };
+  useEffect(() => {
+    const autoPlay = async () => {
+      if (!deviceId || !currentTrack || !token) return;
+      try {
+        await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+          method: "PUT",
+          body: JSON.stringify({ uris: [currentTrack.uri] }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (err) {
+        console.error("🛑 Failed to autoplay:", err);
+      }
+    };
+
+    autoPlay();
+  }, [deviceId, currentTrack, token]);
 
   return (
-    <div className="p-6 max-w-xl mx-auto space-y-6 font-sans">
-      <h1 className="text-3xl font-bold text-center">🎵 Doowops</h1>
+    <div className="min-h-screen w-full relative bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white">
+      {/* Particle Background */}
+      <Particles
+        id="tsparticles"
+        init={loadSlim}
+        options={{
+          background: { color: "#00000000" },
+          fpsLimit: 60,
+          particles: {
+            color: { value: "#ffffff" },
+            links: {
+              enable: true,
+              color: "#ffffff",
+              distance: 150,
+              opacity: 0.1,
+              width: 1,
+            },
+            move: { enable: true, speed: 0.6 },
+            number: { value: 30 },
+            size: { value: { min: 1, max: 2 } },
+            opacity: { value: 0.3 },
+          },
+        }}
+      />
 
-      {!token && (
-        <div className="text-center mt-4">
-          <a
-            href="http://localhost:5000/auth/login"
-            className="px-4 py-2 bg-green-600 text-white rounded"
-          >
-            Login with Spotify
-          </a>
-        </div>
-      )}
+      {/* Header */}
+      <header className="absolute top-6 left-6 z-50">
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <span>🎵</span> <span>Doowops</span>
+        </h1>
+      </header>
 
-      {token && currentTrack && (
-        <div className="p-4 border rounded-xl shadow bg-white space-y-4">
-          <img
-            src={currentTrack.album.images[0].url}
-            alt={currentTrack.name}
-            className="rounded w-full"
-          />
-          <h2 className="text-xl font-semibold">{currentTrack.name}</h2>
-          <p className="text-sm text-gray-500">
-            {currentTrack.artists.map((a) => a.name).join(", ")}
-          </p>
-
-          <div className="flex gap-4">
-            <button
-              onClick={() => setSelectedTrack(currentTrack)}
-              className="px-4 py-2 bg-green-600 text-white rounded"
-            >
-              Select This Song
-            </button>
-
-            <button
-              disabled={currentIndex >= tracks.length - 1}
-              onClick={handleSkip}
-              className="px-4 py-2 border rounded"
-            >
-              ⏭ Skip
-            </button>
-          </div>
-
-          <WebPlayback
-            token={token}
-            trackUri={currentTrack.uri}
-            onReady={setDeviceId}
-          />
-        </div>
-      )}
-
+      {/* Your Choice */}
       {selectedTrack && (
-        <div className="mt-6 p-4 border rounded-xl bg-green-100">
-          <h3 className="text-lg font-bold">✅ You Selected:</h3>
-          <p className="text-base">{selectedTrack.name}</p>
-          <p className="text-sm text-gray-600">
-            {selectedTrack.artists.map((a) => a.name).join(", ")}
-          </p>
+        <div className="absolute top-6 right-6 bg-slate-800 p-3 rounded flex items-center space-x-3 shadow-lg z-50">
+          <img src={selectedTrack.album.images[2]?.url} alt="thumb" className="w-12 h-12 rounded" />
+          <div>
+            <p className="text-xs text-gray-400 font-semibold">YOUR CHOICE:</p>
+            <p className="text-sm font-semibold">{selectedTrack.name}</p>
+            <p className="text-xs text-gray-300">
+              {selectedTrack.artists.map((a) => a.name).join(", ")}
+            </p>
+          </div>
         </div>
       )}
+
+      {/* Player */}
+      <main className="flex flex-col items-center justify-start pt-28 pb-20 px-4">
+        {token && currentTrack && (
+          <div className="p-4 border rounded-xl shadow bg-zinc-900 text-white space-y-4 relative max-w-md w-full">
+            <div className="relative">
+              <img src={currentTrack.album.images[0].url} alt={currentTrack.name} className="rounded w-full" />
+              <button
+                disabled={currentIndex >= tracks.length - 1}
+                onClick={() => setCurrentIndex(currentIndex + 1)}
+                className="absolute top-1/2 right-[-2rem] transform -translate-y-1/2 text-purple-500 bg-white p-3 rounded-full shadow-lg text-4xl hover:scale-110 transition-all duration-200"
+              >
+                <FaForward />
+              </button>
+            </div>
+
+            <div className="text-center">
+              <h2 className="text-xl font-semibold">{currentTrack.name}</h2>
+              <p className="text-sm text-gray-300">
+                {currentTrack.artists.map((a) => a.name).join(", ")}
+              </p>
+            </div>
+
+            <WebPlayback token={token} trackUri={currentTrack.uri} onReady={setDeviceId} volume={volume} />
+
+            <div className="flex gap-4 justify-center mt-4">
+              <button
+                disabled={!!selectedTrack}
+                onClick={() => setSelectedTrack(currentTrack)}
+                className={`px-4 py-2 ${selectedTrack ? "bg-gray-500" : "bg-green-600"} text-white rounded`}
+              >
+                Select This Song
+              </button>
+              <button
+                onClick={reset}
+                className="px-4 py-2 bg-blue-500 text-white rounded"
+              >
+                🔄 Reset
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!token && (
+          <div className="text-center mt-6">
+            <a
+              href={`${BACKEND_URL}/auth/login`}
+              className="bg-green-600 px-6 py-2 text-white rounded"
+            >
+              Login with Spotify
+            </a>
+          </div>
+        )}
+      </main>
+
+      {/* Volume Control */}
+      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+        <FaVolumeUp className="text-gray-400" />
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={volume}
+          onChange={(e) => setVolume(parseInt(e.target.value))}
+          className="w-32"
+        />
+      </div>
     </div>
   );
 }
