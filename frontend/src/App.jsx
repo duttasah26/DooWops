@@ -5,7 +5,7 @@ import { loadSlim } from "tsparticles-slim";
 import { FaRedo, FaSpotify, FaForward, FaCheck } from "react-icons/fa";
 import "./App.css";
 
-const MOCK_PLAYLIST_ID = "5HmrH4b9CB1AgkQxqlkscV";
+const MOCK_PLAYLIST_ID = "6utZxFzH2JKGp944C3taxO";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 export default function App() {
