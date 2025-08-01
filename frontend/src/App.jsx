@@ -3,6 +3,7 @@ import WebPlayback from "./WebPlayback";
 import Particles from "react-tsparticles";
 import { loadSlim } from "tsparticles-slim";
 import { FaRedo, FaSpotify, FaForward, FaCheck } from "react-icons/fa";
+import LoginPage from "./LoginPage";  // Import your new login page
 import "./App.css";
 
 const MOCK_PLAYLIST_ID = "6utZxFzH2JKGp944C3taxO";
@@ -14,56 +15,123 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
+  const [tokenError, setTokenError] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  // Load token from localStorage or URL hash after Spotify login
   useEffect(() => {
     const hash = window.location.hash;
     const storedToken = localStorage.getItem("spotify_token");
     if (!storedToken && hash) {
       const params = new URLSearchParams(hash.substring(1));
-      const token = params.get("access_token");
-      if (token) {
-        localStorage.setItem("spotify_token", token);
-        setToken(token);
+      const t = params.get("access_token");
+      if (t) {
+        localStorage.setItem("spotify_token", t);
+        setToken(t);
         window.history.replaceState(null, null, " ");
       }
     } else if (storedToken) {
       setToken(storedToken);
+    } else {
+      setLoading(false); // No token at all, done loading
     }
   }, []);
 
-  const fetchRandomTracks = async () => {
-    const res = await fetch(`${BACKEND_URL}/api/playlist/${MOCK_PLAYLIST_ID}`);
-    const data = await res.json();
-    setTracks(data.tracks);
-    setCurrentIndex(0);
-    setSelectedTrack(null);
-  };
-
+  // On token change, try to fetch tracks and sync backend auth state
   useEffect(() => {
-    if (token) fetchRandomTracks();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    const verify = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/playlist/${MOCK_PLAYLIST_ID}`);
+        if (!res.ok || res.status === 401 || res.status === 500 || res.status === 504) {
+          // token is invalid/expired OR backend is not ready
+          setTokenError(true);
+          setToken("");
+          localStorage.removeItem("spotify_token");
+        } else {
+          const data = await res.json();
+          setTracks(data.tracks || []);
+          setCurrentIndex(0);
+          setSelectedTrack(null);
+          setTokenError(false);
+        }
+      } catch (err) {
+        setTokenError(true);
+        setToken("");
+        localStorage.removeItem("spotify_token");
+      } finally {
+        setLoading(false);
+      }
+    };
+    verify();
+    // eslint-disable-next-line
   }, [token]);
 
   const currentTrack = tracks[currentIndex]?.track;
 
+  // Try to play on deviceId/currentTrack change
   useEffect(() => {
+    if (!deviceId || !currentTrack || !token) return;
     const autoPlay = async () => {
-      if (!deviceId || !currentTrack || !token) return;
       try {
         await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
           method: "PUT",
           body: JSON.stringify({ uris: [currentTrack.uri] }),
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "Authorization": `Bearer ${token}`,
           },
         });
       } catch (err) {
+        setTokenError(true);
+        setToken("");
+        localStorage.removeItem("spotify_token");
         console.error("🛑 Failed to autoplay:", err);
       }
     };
     autoPlay();
+    // eslint-disable-next-line
   }, [deviceId, currentTrack, token]);
 
+  // --- Loading state (first load or after login) ---
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-900 to-black text-white">
+        <Particles
+          id="tsparticles"
+          init={loadSlim}
+          options={{
+            background: { color: "transparent" },
+            fpsLimit: 60,
+            particles: {
+              color: { value: "#ffffff" },
+              links: { enable: true, color: "#ffffff", distance: 150, opacity: 0.2, width: 1 },
+              move: { enable: true, speed: 0.5 },
+              number: { value: 40 },
+              opacity: { value: 0.3 },
+              size: { value: { min: 1, max: 3 } },
+            },
+          }}
+        />
+        <div className="absolute top-4 left-6 flex items-center gap-2 z-50">
+          <FaSpotify className="text-green-500 text-3xl" />
+          <h1 className="text-3xl font-bold">DooWops</h1>
+        </div>
+        <h2 className="text-xl mt-24">Connecting to Spotify...</h2>
+      </div>
+    );
+  }
+
+  // --- LoginPage for no token or token error ---
+  if (!token || tokenError) {
+    return <LoginPage error={tokenError ? "Spotify session expired or authentication failed. Please log in again." : undefined} />;
+  }
+
+  // --- Main authenticated music/game UI ---
   return (
     <div className="min-h-screen w-screen relative bg-gradient-to-br from-purple-900 to-black text-white overflow-x-hidden">
       <Particles
@@ -113,17 +181,14 @@ export default function App() {
               <p className="text-sm text-gray-300 text-center">
                 {currentTrack.artists.map((a) => a.name).join(", ")}
               </p>
-
               <p className="text-center text-sm text-purple-300 mt-2">
                 Track {currentIndex + 1}/3
               </p>
-
               <WebPlayback
                 token={token}
                 trackUri={currentTrack.uri}
                 onReady={setDeviceId}
               />
-
               <div className="flex justify-between items-center mt-4">
                 <button
                   disabled={!!selectedTrack}
@@ -133,7 +198,6 @@ export default function App() {
                 >
                   <FaCheck />
                 </button>
-
                 <button
                   disabled={currentIndex >= tracks.length - 1}
                   onClick={() => setCurrentIndex(currentIndex + 1)}
@@ -152,23 +216,35 @@ export default function App() {
             </div>
           )
         )}
-
-        {!token && (
-          <div className="text-center mt-10">
-            <a
-              href={`${BACKEND_URL}/auth/login`}
-              className="bg-green-600 px-6 py-2 text-white rounded"
-            >
-              Login with Spotify
-            </a>
-          </div>
-        )}
       </div>
 
       {/* Bottom Left Reset */}
       <div className="absolute bottom-6 left-6 z-50">
         <button
-          onClick={fetchRandomTracks}
+          onClick={() => {
+            // re-fetch songs for next round/reset
+            const fetchTracks = async () => {
+              try {
+                const res = await fetch(`${BACKEND_URL}/api/playlist/${MOCK_PLAYLIST_ID}`);
+                if (!res.ok) {
+                  setTokenError(true);
+                  setToken("");
+                  localStorage.removeItem("spotify_token");
+                  return;
+                }
+                const data = await res.json();
+                setTracks(data.tracks || []);
+                setCurrentIndex(0);
+                setSelectedTrack(null);
+                setTokenError(false);
+              } catch (err) {
+                setTokenError(true);
+                setToken("");
+                localStorage.removeItem("spotify_token");
+              }
+            };
+            fetchTracks();
+          }}
           className="text-white text-2xl hover:text-blue-400 transition-all"
           title="Reset"
         >
