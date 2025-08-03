@@ -133,10 +133,12 @@ function refreshAccessToken() {
 app.get("/api/playlist/:playlistId", async (req, res) => {
   const playlistId = req.params.playlistId;
   const now = Date.now();
+  const count = Number(req.query.count) || 3;   // 🟢 Use this everywhere!
 
   const cacheEntry = playlistCache[playlistId];
   if (cacheEntry && now < cacheEntry.expiresAt) {
-    return res.json({ tracks: pickRandomTracks(cacheEntry.tracks, 3) });
+    // 🟢 FIX: use requested count for cache
+    return res.json({ tracks: pickRandomTracks(cacheEntry.tracks, count) });
   }
 
   async function fetchFromSpotifyApi(token) {
@@ -167,13 +169,15 @@ app.get("/api/playlist/:playlistId", async (req, res) => {
 
   try {
     const tracks = await fetchFromSpotifyApi(latest_token);
-    res.json({ tracks: pickRandomTracks(tracks, 3) });
+    // 🟢 FIX: use requested count if fresh (not just 3)
+    res.json({ tracks: pickRandomTracks(tracks, count) });
   } catch (err) {
     if (err.response && err.response.status === 401) {
       try {
         await refreshAccessToken();
         const tracks = await fetchFromSpotifyApi(latest_token);
-        res.json({ tracks: pickRandomTracks(tracks, 3) });
+        // 🟢 FIX: use requested count also here
+        res.json({ tracks: pickRandomTracks(tracks, count) });
       } catch (refreshErr) {
         console.error("Failed to refresh token and fetch playlist:", refreshErr.message);
         return res.status(500).json({ error: "Unable to refresh token" });
@@ -184,6 +188,7 @@ app.get("/api/playlist/:playlistId", async (req, res) => {
     }
   }
 });
+
 
 function pickRandomTracks(tracks, count = 3) {
   const shuffled = [...tracks].sort(() => 0.5 - Math.random());
